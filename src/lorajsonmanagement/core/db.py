@@ -15,23 +15,37 @@ class HashDatabase:
     Manages an SQLite database of SHA256 hashes for deduplication.
     """
     
-    def __init__(self, db_path: str = "codetointegrate/default.sqlite"):
+    def __init__(self, db_path: str = "codetointegrate/default.sqlite", secondary_db_path: Optional[str] = None):
         self.db_path = db_path
-        # No _init_db here since we expect the DB to exist and be read-only
+        self.secondary_db_path = secondary_db_path
 
-    def has_hash(self, sha256: str) -> bool:
-        """Check if a hash already exists in the external database."""
-        if not os.path.exists(self.db_path):
+    def _check_db(self, path: str, sha256: str) -> bool:
+        """Helper to check a specific DB for a hash."""
+        if not path or not os.path.exists(path):
             return False
             
         sha = sha256.lower()
-        with sqlite3.connect(self.db_path) as conn:
-            try:
-                cursor = conn.execute("SELECT 1 FROM hash_index WHERE sha256 = ?", (sha,))
-                return cursor.fetchone() is not None
-            except sqlite3.OperationalError:
-                # Table might not exist in some versions of the DB
-                return False
+        try:
+            with sqlite3.connect(path) as conn:
+                # Try both hash_index (new) and model_hashes (legacy) tables
+                for table in ["hash_index", "model_hashes"]:
+                    try:
+                        cursor = conn.execute(f"SELECT 1 FROM {table} WHERE sha256 = ?", (sha,))
+                        if cursor.fetchone():
+                            return True
+                    except sqlite3.OperationalError:
+                        continue
+        except Exception:
+            pass
+        return False
+
+    def has_hash(self, sha256: str) -> bool:
+        """Check if a hash already exists in the primary or secondary database."""
+        if self._check_db(self.db_path, sha256):
+            return True
+        if self.secondary_db_path and self._check_db(self.secondary_db_path, sha256):
+            return True
+        return False
 
     def add_hash(self, sha256: str, repo_id: str, file_name: str, meta_data: Dict[str, Any]):
         """
