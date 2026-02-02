@@ -19,6 +19,7 @@ This file contains raw and processed metadata, often populated from sources like
 - `base_model`: String. Normalized architecture (e.g., "Flux.1 D", "SD 1.5").
 - `modified`: Number. Unix timestamp of the last update.
 - `tags`: List of strings. Categorization and search terms.
+- `from_civitai`: Boolean. Flags if the model originated from Civitai.
 - `civitai`: Object. **Authoritative source for ALL trigger words** (stored as `trainedWords` within this object). This field is required even for non-Civitai models if trigger words are present.
 - `preview_url`: String. Path to the localized preview image.
 - `preview_nsfw_level`: Number. 0-2 scale for content sensitivity.
