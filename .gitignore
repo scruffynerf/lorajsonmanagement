@@ -116,6 +116,10 @@ venv.bak/
 
 # Rope project settings
 .ropeproject
+# Temporary Diagnostic Scripts
+diagnose_*.py
+verify_*.py
+tmp_*.py
 
 # mkdocs documentation
 /site
