@@ -50,7 +50,7 @@ class HFScraperManager:
             self.processor.log(f"❌ Error accessing repo {repo_id}: {e}")
             return
 
-        base_dir = Path(output_dir or f"downloaded/{repo_id.replace('/', '_')}")
+        base_dir = Path(output_dir or "downloads") / repo_id
         if not self.dry_run: base_dir.mkdir(parents=True, exist_ok=True)
 
         # 2. Filter files

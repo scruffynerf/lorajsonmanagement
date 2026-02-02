@@ -126,7 +126,7 @@ class MSScraperManager:
             
             try:
                 down_path = Path(output_dir or "downloads")
-                target_dir = str(down_path / reponame)
+                target_dir = str(down_path / repo_id)
                 
                 if self.dry_run:
                     self.processor.log(f"💡 [Dry-run] Would download {repo_id} to {target_dir}")
