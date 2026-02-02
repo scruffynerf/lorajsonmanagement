@@ -46,16 +46,29 @@ class MSScraperManager:
 
         data = details.get("Data", {})
         
-        # Base model filtering (client-side)
+        # Base model filtering (client-side backup)
         if base_models:
             tags = data.get("Tags", [])
             description = data.get("Description", "").lower()
-            text_to_search = " ".join(str(t) for t in tags) + " " + description
+            # Include repo_id in search text for maximum robustness
+            text_to_search = f"{repo_id} {' '.join(str(t) for t in tags)} {description}".lower()
+            
             found = False
             for bm in base_models:
-                if bm.lower() in text_to_search.lower():
+                bm_lower = bm.lower()
+                # Try multiple variants for strings with underscores/hyphens (e.g., Z_IMAGE vs Z-IMAGE)
+                variants = {bm_lower, bm_lower.replace("_", "-"), bm_lower.replace("_", " "), bm_lower.replace("_", "")}
+                
+                # Special cases for common ModelScope abbreviations
+                if "z_image_turbo" in bm_lower:
+                    variants.add("zit")
+                if "qwen_image" in bm_lower:
+                    variants.add("qwen")
+                
+                if any(v in text_to_search for v in variants):
                     found = True
                     break
+            
             if not found:
                 self.processor.log(f"⏭️ Skipping {repo_id} - does not match base models {base_models}")
                 return
@@ -143,7 +156,7 @@ class MSScraperManager:
     def sync_batch(self, repo_list: List[str], base_models: Optional[List[str]] = None, **kwargs):
         """Sync a list of Modelscope repositories."""
         for repo_id in repo_list:
-            self.sync_repo(repo_id, base_models=base_models, **kwargs)
+            self.sync_repo(repo_id, base_models=None, **kwargs)
 
     def scrape_all(self, model_type: str = "LoRA", limit: Optional[int] = None, 
                    base_models: Optional[List[str]] = None, **kwargs):
