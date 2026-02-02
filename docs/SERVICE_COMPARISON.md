@@ -22,10 +22,14 @@ The Hugging Face integration is optimized for **precision** and **bandwidth effi
 - **LFS Support**: We read the `oid sha256:` from pointer files.
 - **Parallelism**: Uses a bounded `ThreadPoolExecutor` for high-throughput sync.
 
-### Modelscope (Versatile Access)
-Modelscope integration is optimized for **high-speed acquisition** and **broad discovery**. 
-- **Git & LFS**: Fully supports standard `git clone` and LFS pointer extraction.
-- **Dolphin API**: Uses the same endpoint as the official UI for accurate "latest" metadata.
+### ModelScope
+- **Multilingual Domains**: ModelScope operates two distinct sites: `modelscope.cn` (Chinese) and `modelscope.ai` (International). These are separate services with different logins and potentially different models.
+- **Civision**: A specialized, user-friendly section of ModelScope (often at `/civision`) focused on vision models and community training. New LoRAs frequently appear here first.
+- **API Access**: 
+    - Official Details API: `https://modelscope.ai/api/v1/models/USERNAME/REPONAME`
+    - Discovery/Search API: `https://modelscope.ai/api/v1/dolphin/models` (requires a specific `PUT` payload with `IsAigc: True` and `SingleCriterion` filters).
+    - SDK: The `modelscope` Python library can be configured to target either the `.cn` or `.ai` domain.
+ the official UI for accurate "latest" metadata.
 - **Region Switching**: Native support for `.ai` and `.cn` domains.
 - **Search-to-Sync**: Seamless integration between search results and batch downloading.
 

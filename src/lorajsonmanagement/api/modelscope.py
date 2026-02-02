@@ -32,7 +32,7 @@ class ModelscopeAPI:
             "User-Agent": user_agent or "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36",
             "Content-Type": "application/json",
             "Accept": "application/json",
-            "Referer": f"{self.base_url}/civision/models?modelType=LoRA&page=1&sort=latest",
+            "Referer": f"{self.base_url}/models",
         }
         self.api_requests = deque()
 
@@ -52,18 +52,39 @@ class ModelscopeAPI:
         
         self.api_requests.append(current_time)
 
-    def search_models(self, model_type: str = "LoRA", page: int = 1, sort: str = "latest", civision: bool = True) -> Dict[str, Any]:
-        """Search for models on Modelscope using the dolphin endpoint."""
+    def search_models(self, model_type: str = "LoRA", page: int = 1, sort: str = "GmtModified") -> Dict[str, Any]:
+        """Search for models on Modelscope using the dolphin endpoint with robust payload."""
         url = f"{self.base_url}/api/v1/dolphin/models"
+        
+        # Robust payload as discovered in telemetry/user-feedback
         payload = {
-            "modelType": model_type,
-            "page": page,
-            "sort": sort,
-            "civision": civision
+            "PageSize": 30,
+            "PageNumber": page,
+            "SortBy": sort,
+            "Target": "",
+            "IsAigc": True,
+            "Name": "",
+            "ImgUrl": "",
+            "SingleCriterion": [
+                {
+                    "category": "aigc_type",
+                    "DateType": "string",
+                    "predicate": "equal",
+                    "StringValue": model_type
+                },
+                {
+                    "category": "vision_foundation",
+                    "DateType": "string",
+                    "predicate": "equal",
+                    "StringValue": "all"
+                }
+            ],
+            "Criterion": []
         }
             
         try:
             self.check_rate_limit()
+            # Note: Modelscope uses PUT for this search endpoint
             response = requests.put(url, json=payload, headers=self.headers, timeout=10)
             if response.status_code == 200:
                 return response.json()
@@ -135,7 +156,8 @@ class ModelscopeAPI:
             allow_patterns=allow_patterns,
             ignore_patterns=ignore_patterns
         )
-    def iterate_models(self, model_type: str = "LoRA", sort: str = "latest", limit: Optional[int] = None):
+
+    def iterate_models(self, model_type: str = "LoRA", sort: str = "GmtModified", limit: Optional[int] = None):
         """
         Generator that yields model summaries from search results, 
         handling pagination automatically.
@@ -149,7 +171,8 @@ class ModelscopeAPI:
                 break
                 
             data = results.get("Data", {}) or results.get("data", {}) 
-            models = data.get("Models", []) or data.get("models", [])
+            model_data = data.get("Model", {})
+            models = model_data.get("Models", [])
             
             if not models:
                 break
@@ -171,7 +194,8 @@ def main():
     # Search example
     results = api.search_models()
     if "error" not in results:
-        print(f"Successfully retrieved {len(results.get('data', {}).get('models', []))} models.")
+        models = results.get("Data", {}).get("Model", {}).get("Models", [])
+        print(f"Successfully retrieved {len(models)} models.")
     
     # Details example
     # Example: api.get_model_details("damo", "cv_resnet50_face-detection_retinaface")
