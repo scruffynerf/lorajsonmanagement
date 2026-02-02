@@ -27,6 +27,10 @@ The `lorajsonmanagement` project has been transformed into a highly modular tool
 
 ## Implementation Guidelines
 
+### CORE RESTRICTIONS (HIGHEST PRIORITY)
+- **Ask Before Changing**: NEVER make behavioral, architectural, or design changes (e.g., changing default sort orders, modifying existing logic "just because", or switching service implementations) without explicit USER request or approval. If an improvement seems obvious, suggest it first rather than implementing it proactively.
+- **Service Segregation**: Do NOT mix or touch service implementations (e.g., HF vs ModelScope) when requested to fix one specifically.
+
 ### Formatting Rules
 - **Long Lists & Mappings**: When a list or dictionary gets long (e.g., model types, cleanup patterns), spread the items into a more readable format with 1 item per line.
 - **Exceptions**: Obvious spelling/spacing variants can be grouped on a single line if they are logically tied together.

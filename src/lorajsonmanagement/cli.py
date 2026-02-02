@@ -61,8 +61,19 @@ def handle_process(args):
 
 def handle_ms_search(args):
     """Handle Modelscope model search and optionally download."""
+    # Robustly handle base-model argument
+    base_models = []
+    if args.base_model:
+        for item in args.base_model:
+            if "," in item:
+                base_models.extend([x.strip() for x in item.split(",") if x.strip()])
+            elif " " in item:
+                base_models.extend([x.strip() for x in item.split(" ") if x.strip()])
+            else:
+                base_models.append(item.strip())
+
     api = ModelscopeAPI(domain=args.domain)
-    results = api.search_models(model_type=args.type, page=args.page, sort=args.sort, base_models=args.base_model)
+    results = api.search_models(model_type=args.type, page=args.page, sort=args.sort, base_models=base_models)
     
     if args.download:
         from lorajsonmanagement.core.scraper_ms import MSScraperManager
@@ -92,7 +103,7 @@ def handle_ms_search(args):
             size_limit=args.size_limit,
             skip_vae=args.novae,
             skip_text_encoder=args.notextencoder,
-            base_models=args.base_model
+            base_models=base_models
         )
     else:
         print(json.dumps(results, indent=2))
@@ -168,6 +179,19 @@ def handle_ms_scrape(args):
         verbose=not args.quiet
     )
     
+    # Robustly handle base-model argument (allow comma or space separation even if quoted)
+    base_models = []
+    if args.base_model:
+        for item in args.base_model:
+            # If item contains commas, split by comma
+            if "," in item:
+                base_models.extend([x.strip() for x in item.split(",") if x.strip()])
+            # If item contains spaces and looks like multiple models, split by space
+            elif " " in item:
+                base_models.extend([x.strip() for x in item.split(" ") if x.strip()])
+            else:
+                base_models.append(item.strip())
+    
     # Determine repositories
     repos = []
     if args.repo_file:
@@ -188,7 +212,7 @@ def handle_ms_scrape(args):
             size_limit=args.size_limit,
             skip_vae=args.novae,
             skip_text_encoder=args.notextencoder,
-            base_models=args.base_model
+            base_models=base_models
         )
     else:
         # Scrape by type
@@ -200,7 +224,7 @@ def handle_ms_scrape(args):
             size_limit=args.size_limit,
             skip_vae=args.novae,
             skip_text_encoder=args.notextencoder,
-            base_models=args.base_model
+            base_models=base_models
         )
 
 def handle_hf_scrape(args):
