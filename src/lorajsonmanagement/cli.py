@@ -62,7 +62,7 @@ def handle_process(args):
 def handle_ms_search(args):
     """Handle Modelscope model search and optionally download."""
     api = ModelscopeAPI(domain=args.domain)
-    results = api.search_models(model_type=args.type, page=args.page, sort=args.sort)
+    results = api.search_models(model_type=args.type, page=args.page, sort=args.sort, base_models=args.base_model)
     
     if args.download:
         from lorajsonmanagement.core.scraper_ms import MSScraperManager
@@ -74,7 +74,8 @@ def handle_ms_search(args):
         )
         
         data = results.get("Data", {}) or results.get("data", {})
-        models = data.get("Models", []) or data.get("models", [])
+        model_data = data.get("Model", {})
+        models = model_data.get("Models", [])
         
         repo_ids = []
         for model in models:
@@ -91,7 +92,7 @@ def handle_ms_search(args):
             size_limit=args.size_limit,
             skip_vae=args.novae,
             skip_text_encoder=args.notextencoder,
-            base_model=args.base_model
+            base_models=args.base_model
         )
     else:
         print(json.dumps(results, indent=2))
@@ -187,7 +188,7 @@ def handle_ms_scrape(args):
             size_limit=args.size_limit,
             skip_vae=args.novae,
             skip_text_encoder=args.notextencoder,
-            base_model=args.base_model
+            base_models=args.base_model
         )
     else:
         # Scrape by type
@@ -199,7 +200,7 @@ def handle_ms_scrape(args):
             size_limit=args.size_limit,
             skip_vae=args.novae,
             skip_text_encoder=args.notextencoder,
-            base_model=args.base_model
+            base_models=args.base_model
         )
 
 def handle_hf_scrape(args):
@@ -276,7 +277,7 @@ def main():
     parser_ms_scrape.add_argument("--novae", action="store_true", help="Skip VAE files")
     parser_ms_scrape.add_argument("--notextencoder", action="store_true", help="Skip text_encoder files")
     parser_ms_scrape.add_argument("--limit", type=int, help="Max number of repos to check when scraping by type")
-    parser_ms_scrape.add_argument("--base-model", help="Filter by base model tag or description")
+    parser_ms_scrape.add_argument("--base-model", nargs="+", help="Filter by base model tag or description")
     parser_ms_scrape.add_argument("--dry-run", action="store_true", help="Don't download")
     parser_ms_scrape.add_argument("--quiet", action="store_true", help="Minimize output")
     parser_ms_scrape.set_defaults(func=handle_ms_scrape)
@@ -314,7 +315,7 @@ def main():
     parser_ms_search.add_argument("--size-limit", type=int, help="Skip files larger than this (bytes)")
     parser_ms_search.add_argument("--novae", action="store_true", help="Skip VAE files")
     parser_ms_search.add_argument("--notextencoder", action="store_true", help="Skip text_encoder files")
-    parser_ms_search.add_argument("--base-model", help="Filter by base model tag or description")
+    parser_ms_search.add_argument("--base-model", nargs="+", help="Filter by base model tag or description")
     parser_ms_search.add_argument("--quiet", action="store_true", help="Minimize output")
     parser_ms_search.add_argument("--dry-run", action="store_true", help="Don't download")
     parser_ms_search.set_defaults(func=handle_ms_search)

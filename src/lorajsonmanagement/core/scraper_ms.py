@@ -25,7 +25,8 @@ class MSScraperManager:
 
     def sync_repo(self, repo_id: str, extensions: Optional[List[str]] = None,
                   output_dir: Optional[str] = None, size_limit: Optional[int] = None,
-                  skip_vae: bool = False, skip_text_encoder: bool = False, base_model: Optional[str] = None):
+                  skip_vae: bool = False, skip_text_encoder: bool = False, 
+                  base_models: Optional[List[str]] = None):
         """
         Synchronize a single Modelscope repository, downloading only files not already in the DB.
         """
@@ -46,13 +47,17 @@ class MSScraperManager:
         data = details.get("Data", {})
         
         # Base model filtering (client-side)
-        if base_model:
-            bm_lower = base_model.lower()
+        if base_models:
             tags = data.get("Tags", [])
             description = data.get("Description", "").lower()
-            found = any(bm_lower in str(tag).lower() for tag in tags) or bm_lower in description
+            text_to_search = " ".join(str(t) for t in tags) + " " + description
+            found = False
+            for bm in base_models:
+                if bm.lower() in text_to_search.lower():
+                    found = True
+                    break
             if not found:
-                self.processor.log(f"⏭️ Skipping {repo_id} - does not match base model {base_model}")
+                self.processor.log(f"⏭️ Skipping {repo_id} - does not match base models {base_models}")
                 return
 
         # Modelscope separates files by type; we'll look at safetensors and potentially others
@@ -135,19 +140,20 @@ class MSScraperManager:
         else:
             self.processor.log(f"⏭️ Skipping {repo_id} - all files accounted for.")
 
-    def sync_batch(self, repo_list: List[str], **kwargs):
+    def sync_batch(self, repo_list: List[str], base_models: Optional[List[str]] = None, **kwargs):
         """Sync a list of Modelscope repositories."""
         for repo_id in repo_list:
-            self.sync_repo(repo_id, **kwargs)
+            self.sync_repo(repo_id, base_models=base_models, **kwargs)
 
-    def scrape_all(self, model_type: str = "LoRA", limit: Optional[int] = None, **kwargs):
+    def scrape_all(self, model_type: str = "LoRA", limit: Optional[int] = None, 
+                   base_models: Optional[List[str]] = None, **kwargs):
         """
         Scrape Modelscope for all models of a type, syncing each.
         """
         self.processor.log(f"🕵️ Starting scrape for {model_type} models...")
         
         count = 0
-        for model_summary in self.api.iterate_models(model_type=model_type, limit=limit):
+        for model_summary in self.api.iterate_models(model_type=model_type, limit=limit, base_models=base_models):
             repo_id = model_summary.get("modelName") or model_summary.get("Path")
             if not repo_id: continue
             

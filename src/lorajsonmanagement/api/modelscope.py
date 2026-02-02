@@ -52,7 +52,8 @@ class ModelscopeAPI:
         
         self.api_requests.append(current_time)
 
-    def search_models(self, model_type: str = "LoRA", page: int = 1, sort: str = "GmtModified") -> Dict[str, Any]:
+    def search_models(self, model_type: str = "LoRA", page: int = 1, sort: str = "GmtModified", 
+                      base_models: Optional[List[str]] = None) -> Dict[str, Any]:
         """Search for models on Modelscope using the dolphin endpoint with robust payload."""
         url = f"{self.base_url}/api/v1/dolphin/models"
         
@@ -81,6 +82,13 @@ class ModelscopeAPI:
             ],
             "Criterion": []
         }
+
+        if base_models:
+            payload["Criterion"].append({
+                "category": "sub_vision_foundation",
+                "predicate": "contains",
+                "values": base_models
+            })
             
         try:
             self.check_rate_limit()
@@ -157,7 +165,8 @@ class ModelscopeAPI:
             ignore_patterns=ignore_patterns
         )
 
-    def iterate_models(self, model_type: str = "LoRA", sort: str = "GmtModified", limit: Optional[int] = None):
+    def iterate_models(self, model_type: str = "LoRA", sort: str = "GmtModified", limit: Optional[int] = None,
+                       base_models: Optional[List[str]] = None):
         """
         Generator that yields model summaries from search results, 
         handling pagination automatically.
@@ -165,7 +174,7 @@ class ModelscopeAPI:
         page = 1
         count = 0
         while True:
-            results = self.search_models(model_type=model_type, page=page, sort=sort)
+            results = self.search_models(model_type=model_type, page=page, sort=sort, base_models=base_models)
             
             if "error" in results:
                 break
