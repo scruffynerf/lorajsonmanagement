@@ -7,8 +7,24 @@ Note: Untested automatedly (Requires local FFmpeg/Pillow and media assets). Chec
 import os
 import subprocess
 import shutil
+import requests
 from pathlib import Path
 from typing import Optional
+
+
+def download_image(url: str, dest: Path, verbose: bool = False) -> bool:
+    """Download an image from a URL to a local path."""
+    try:
+        response = requests.get(url, timeout=20, stream=True)
+        response.raise_for_status()
+        with open(dest, "wb") as f:
+            for chunk in response.iter_content(chunk_size=8192):
+                f.write(chunk)
+        return dest.exists()
+    except Exception as e:
+        if verbose:
+            print(f"❌ Failed to download image from {url}: {e}")
+        return False
 
 try:
     from PIL import Image

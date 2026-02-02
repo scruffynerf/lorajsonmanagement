@@ -10,7 +10,7 @@ import json
 import re
 from datetime import datetime, timezone
 from typing import Optional, List, Tuple, Dict, Any
-from lorajsonmanagement.core.hashing import file_hashes
+from lorajsonmanagement.core.hashing import file_hashes, get_autov3_hash
 
 from lorajsonmanagement.core.config import (
     VALID_MODEL_TYPES,
@@ -157,6 +157,7 @@ def build_cm_info(metadata: Dict[str, Any]) -> Dict[str, Any]:
             "SHA256": sha256 if sha256 else None,
             "CRC32": filecrc32,
             "BLAKE3": fileblake3,
+            "AutoV3": get_autov3_hash(Path(file_path)) if file_path else None
         },
         "TrainedWords": extract_trained_words(civitai),
         "Stats": extract_stats(civitai),

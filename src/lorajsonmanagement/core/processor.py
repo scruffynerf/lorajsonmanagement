@@ -24,7 +24,13 @@ from lorajsonmanagement.core.media import (
     is_ffmpeg_available,
     extract_frame_from_video,
     convert_image_to_jpeg,
-    find_preview_source
+    find_preview_source,
+    download_image
+)
+from lorajsonmanagement.core.analyzer import (
+    read_safetensor_metadata,
+    extract_trained_words_from_st,
+    SignatureAnalyzer
 )
 from lorajsonmanagement.core.wikidata import interactive_wikitag_lookup
 
@@ -47,56 +53,8 @@ class ModelProcessor:
         civitai = meta.get("civitai") or {}
         model_name = meta.get("model_name", "")
         
-        # Consistent cleanup logic from metadataprocessandtag.py
-        MODEL_NAME_CLEANUP = [
-            # Model Family / Architecture Tags
-            "(Flux)", "(flux)", "[Flux]", "- FLUX", "Flux", "flux", "FLux", "FLUX", "(Flux LoRa)",
-            "(SDXL)", "[SDXL]", "- SDXL", "SDXL",
-            "(SD1.5)", "(SD-1.5)", "SD1.5", "SD-1.5",
-            "(Hunyuan)", "Hunyuan",
-            "(Pony)", "Pony", "_PONY",
-            "(Wan)", "Wan", "wan", "wan_",
-            "(LTXV)", "LTXV", "LTXV2",
-            "(Illustrious)", "illustrious", "_IL",
-            "(Qwen)", "Qwen",
-            "(Chroma)", "Chroma",
-            "ZimageBase", "zimagebase",
-            
-            # Creator / Specific Tags
-            "[LuisaP❤️]",
-            "ZIT &", "& IL", "ZIT_IL", "ZIT",
-            "zimage-turbo", "Z Image Turbo", "Z-image-Turbo", "Z-Image-Turbo", "Z-image", "z-image", "Z image", "Z-Image",
-            "ZImageTurbo", "Z-IMAGE-TURBO", "z-image turbo", "Z image turbo", "Z-Image Turbo", "_Z-Turbo", "Zimage",
-            
-            # Component / Type Tags
-            "LoRa", "LoRA", "Lora", " lora", "SoloLoRA",
-            "Checkpoint", "VAE", "ControlNet", "Embedding",
-            
-            # Version Patterns
-            "(v1)", "(v2)", "(v3)", "(_v1)", "(_v2)", "(_v3)",
-            "v1", "v2", "v3", "_v1", "_v2", "_v3",
-            "V1", "V2", "V3", "_V1", "_V2", "_V3",
-            "1.D", ".1 D", ".1D",
-            "v1.0", "v2.0", "V1.0", "V2.0",
-            
-            # Quality / Performance Tags
-            "[ Turbo]", "( Turbo)", "[-Turbo]", "Turbo", "turbo",
-            "fp16", "bf16", "fp8", "e5m2", "e4m3fn",
-            "safetensors", ".safetensors", "safe",
-            
-            # Emojis & Symbols
-            "👑", "🎬", "🎤", "❤️", "✨", "⭐",
-            
-            # Separators & Brackets
-            "|", "(++)", "(+)", "( + )",
-            "()", "[ ]", "[ + ]", "[_]", "[]",
-            "{{}}", "[[ ]]", "[[]]",
-        ]
-        
-        cleaned_name = model_name
-        for bad in MODEL_NAME_CLEANUP:
-            cleaned_name = cleaned_name.replace(bad, "")
-        cleaned_name = cleaned_name.replace("  ", " ").replace("__", "_").strip(" -_&+.")
+        from lorajsonmanagement.core.cleaning import clean_model_name
+        cleaned_name = clean_model_name(model_name)
         
         trigger_word = ""
         trained_words = extract_trained_words(civitai)
@@ -229,15 +187,35 @@ class ModelProcessor:
         """Ensure there's a <base>.preview.jpeg file and metadata.preview_url points to it."""
         existing_preview = metadata_obj.get("preview_url")
         if existing_preview:
+            if existing_preview.startswith("http"):
+                dest = directory / f"{base}.preview.jpeg"
+                if self.dry_run:
+                    self.log(f"💡 [Dry-run] Would download preview from {existing_preview}")
+                    return str(dest.as_posix())
+                if download_image(existing_preview, dest, verbose=self.verbose):
+                    metadata_obj["preview_url"] = str(dest.as_posix())
+                    return str(dest.as_posix())
+                return None
+            
             p = Path(existing_preview)
             if not p.is_absolute():
                 p = directory / p
             if p.exists():
                 if p.suffix.lower() in (".jpg", ".jpeg"):
-                    return str((directory / f"{base}.preview.jpeg").as_posix())
+                    dest = directory / f"{base}.preview.jpeg"
+                    if p.resolve() != dest.resolve():
+                        self.log(f"ℹ️ Copying existing preview {p.name} to canonical {dest.name}")
+                        if not self.dry_run:
+                            try:
+                                shutil.copy2(p, dest)
+                            except Exception as e:
+                                self.log(f"❌ Failed to copy preview: {e}")
+                                return None
+                    return str(dest.as_posix())
                 else:
                     dest = directory / f"{base}.preview.jpeg"
                     if p.suffix.lower() == ".mp4":
+                        self.log(f"ℹ️ Extracting frame from existing mp4 preview {p.name}")
                         if self.dry_run:
                             self.log(f"💡 [Dry-run] Would extract frame from {p}")
                             return str(dest.as_posix())
@@ -245,6 +223,7 @@ class ModelProcessor:
                             metadata_obj["preview_url"] = str(dest.as_posix())
                             return str(dest.as_posix())
                     else:
+                        self.log(f"ℹ️ Converting existing preview {p.name} -> {dest.name}")
                         if self.dry_run:
                             self.log(f"💡 [Dry-run] Would convert {p} to JPEG")
                             return str(dest.as_posix())
@@ -302,19 +281,43 @@ class ModelProcessor:
         directory = current_meta_path.parent
         base = metadata.get("file_name") or current_meta_path.stem.replace(".metadata", "")
 
+        # Audit integration: Safetensors analysis for missing trigger words/base model
+        st_path = directory / f"{base}.safetensors"
+        if st_path.exists():
+            _, _, st_metadata = read_safetensor_metadata(st_path)
+            if st_metadata:
+                # Try trigger words
+                st_words = extract_trained_words_from_st(st_metadata)
+                if st_words:
+                    existing_words = metadata.get("tags", [])
+                    new_words = [w for w in st_words if w not in existing_words]
+                    if new_words:
+                        self.log(f"🧠 Extracted {len(new_words)} new trigger words from Safetensors header")
+                        metadata["tags"] = existing_words + new_words
+
+                # Try base model name if missing
+                if not metadata.get("base_model"):
+                    st_base = st_metadata.get("ss_base_model_name")
+                    if st_base:
+                        self.log(f"🔎 Detected base model from header: {st_base}")
+                        metadata["base_model"] = st_base
+
         if wikitag and not self.dry_run:
             model_name = metadata.get("model_name", "")
             if model_name:
+                self.log(f"🔎 Performing Wikidata lookup for: {model_name}")
                 updated_tags = interactive_wikitag_lookup(model_name, metadata.get("tags", [])[:])
                 if updated_tags != metadata.get("tags"):
                     metadata["tags"] = updated_tags
                     with current_meta_path.open("w", encoding="utf-8") as f:
                         json.dump(metadata, f, indent=2)
+                    self.log(f"✅ Updated metadata with Wikidata tags")
 
         preview = self.ensure_preview(metadata, directory, base)
         if preview and not self.dry_run:
             with current_meta_path.open("w", encoding="utf-8") as f:
                 json.dump(metadata, f, indent=2)
+            self.log(f"✅ Finalized preview for {base}")
 
         self.convert_to_cminfo(current_meta_path, validate=validate)
 
@@ -349,6 +352,14 @@ class ModelProcessor:
             if w not in tags:
                 tags.append(w)
 
+        # Extract cover image
+        preview_url = None
+        versions = data.get("versions") or data.get("Versions", [])
+        if versions and isinstance(versions, list) and len(versions) > 0:
+            cover_images = versions[0].get("coverImages") or versions[0].get("CoverImages", [])
+            if cover_images and isinstance(cover_images, list) and len(cover_images) > 0:
+                preview_url = cover_images[0].get("url") or cover_images[0].get("Url")
+
         # Map to internal metadata structure
         base_meta_template = {
             "model_name": model_name,
@@ -357,7 +368,8 @@ class ModelProcessor:
             "tags": tags,
             "from_civitai": False,
             "source": "Modelscope",
-            "civitai": {}
+            "civitai": {},
+            "preview_url": preview_url
         }
         
         if trigger_words:
