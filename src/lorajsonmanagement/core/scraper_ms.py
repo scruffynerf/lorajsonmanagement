@@ -173,7 +173,7 @@ class MSScraperManager:
             if "/" not in repo_id and "Path" in model_summary and "Name" in model_summary:
                 repo_id = f"{model_summary['Path']}/{model_summary['Name']}"
 
-            self.sync_repo(repo_id, base_models=base_models, **kwargs)
+            self.sync_repo(repo_id, base_models=None, **kwargs)
             count += 1
             if limit and count >= limit: break
 
