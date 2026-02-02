@@ -1,0 +1,161 @@
+"""
+MSScraperManager to coordinate Modelscope scraping and deduplication.
+
+Tested in: tests/test_processing.py (Mocked)
+"""
+
+import os
+from pathlib import Path
+from typing import Optional, Dict, List, Any
+from lorajsonmanagement.api.modelscope import ModelscopeAPI
+from lorajsonmanagement.core.processor import ModelProcessor
+from lorajsonmanagement.core.db import HashDatabase
+
+class MSScraperManager:
+    """
+    Coordinates the scraping of Modelscope models, checking hashes before downloading.
+    """
+    
+    def __init__(self, db_path: str = "downloaded_hashes.db", secondary_db: Optional[str] = None, 
+                 domain: str = "ai", dry_run: bool = False, verbose: bool = True):
+        self.api = ModelscopeAPI(domain=domain)
+        self.processor = ModelProcessor(dry_run=dry_run, verbose=verbose)
+        self.db = HashDatabase(db_path=db_path, secondary_db_path=secondary_db)
+        self.dry_run = dry_run
+
+    def sync_repo(self, repo_id: str, extensions: Optional[List[str]] = None,
+                  output_dir: Optional[str] = None, size_limit: Optional[int] = None,
+                  skip_vae: bool = False, skip_text_encoder: bool = False, base_model: Optional[str] = None):
+        """
+        Synchronize a single Modelscope repository, downloading only files not already in the DB.
+        """
+        self.processor.log(f"🔄 Syncing MS repo: {repo_id}")
+        
+        # 1. Get detailed info
+        parts = repo_id.split("/")
+        if len(parts) != 2:
+            self.processor.log(f"❌ Invalid repo_id: {repo_id}")
+            return
+        
+        username, reponame = parts
+        details = self.api.get_model_details(username, reponame)
+        if "error" in details:
+            self.processor.log(f"⚠️ Error fetching details for {repo_id}: {details['error']}")
+            return
+
+        data = details.get("Data", {})
+        
+        # Base model filtering (client-side)
+        if base_model:
+            bm_lower = base_model.lower()
+            tags = data.get("Tags", [])
+            description = data.get("Description", "").lower()
+            found = any(bm_lower in str(tag).lower() for tag in tags) or bm_lower in description
+            if not found:
+                self.processor.log(f"⏭️ Skipping {repo_id} - does not match base model {base_model}")
+                return
+
+        # Modelscope separates files by type; we'll look at safetensors and potentially others
+        file_infos = []
+        model_infos = data.get("ModelInfos", {})
+        for content_type in model_infos:
+            file_infos.extend(model_infos[content_type].get("files", []))
+
+        # 2. Filter files and check deduplication
+        needs_download = False
+        allow_patterns = []
+        ignore_patterns = []
+
+        if extensions:
+            for ext in extensions:
+                allow_patterns.append(f"*{ext}")
+        if skip_vae:
+            ignore_patterns.append("*vae*")
+        if skip_text_encoder:
+            ignore_patterns.append("*text_encoder*")
+
+        for f_info in file_infos:
+            fname = f_info.get("name")
+            sha256 = f_info.get("sha256")
+            size = f_info.get("size")
+
+            # Check filters (redundant with snapshot_download but good for logging)
+            if extensions and not any(fname.endswith(ext) for ext in extensions): continue
+            if skip_vae and "vae" in fname.lower(): continue
+            if skip_text_encoder and "text_encoder" in fname.lower(): continue
+            if size_limit and size and size > size_limit:
+                self.processor.log(f"⏩ Too large: {fname} ({size} bytes)")
+                continue
+
+            if sha256:
+                if self.db.has_hash(sha256):
+                    self.processor.log(f"✅ Already in DB: {fname}")
+                    # We don't download this file, but we should probably ignore it in snapshot_download too
+                    # However, modelscope's snapshot_download doesn't support ignoring specific files by ID easily
+                    # We'll use ignore_patterns for files we already have? 
+                    # No, let's just use snapshot_download's behavior and let it cache, 
+                    # but our logic detects if we need to call it at all.
+                    continue
+                else:
+                    needs_download = True
+            else:
+                # No hash in API, must download to find out
+                needs_download = True
+
+        # 3. Download if needed
+        if needs_download:
+            self.processor.log(f"📥 New content found in {repo_id}, downloading...")
+            
+            try:
+                down_path = Path(output_dir or "downloads")
+                target_dir = str(down_path / reponame)
+                
+                if self.dry_run:
+                    self.processor.log(f"💡 [Dry-run] Would download {repo_id} to {target_dir}")
+                else:
+                    actual_dir = self.api.download_repo(
+                        repo_id, 
+                        local_dir=target_dir,
+                        allow_patterns=allow_patterns if allow_patterns else None,
+                        ignore_patterns=ignore_patterns if ignore_patterns else None
+                    )
+                    self.processor.log(f"✅ Downloaded to {actual_dir}")
+                    
+                    # Generate metadata
+                    self.processor.generate_metadata_from_modelscope(details, Path(actual_dir))
+                    
+                    # Record newly discovered hashes in DB
+                    for f_info in file_infos:
+                        sha = f_info.get("sha256")
+                        if sha:
+                            self.db.add_hash(sha, repo_id, f_info["name"], f_info)
+                            
+            except Exception as e:
+                self.processor.log(f"❌ Failed to download {repo_id}: {e}")
+        else:
+            self.processor.log(f"⏭️ Skipping {repo_id} - all files accounted for.")
+
+    def sync_batch(self, repo_list: List[str], **kwargs):
+        """Sync a list of Modelscope repositories."""
+        for repo_id in repo_list:
+            self.sync_repo(repo_id, **kwargs)
+
+    def scrape_all(self, model_type: str = "LoRA", limit: Optional[int] = None, **kwargs):
+        """
+        Scrape Modelscope for all models of a type, syncing each.
+        """
+        self.processor.log(f"🕵️ Starting scrape for {model_type} models...")
+        
+        count = 0
+        for model_summary in self.api.iterate_models(model_type=model_type, limit=limit):
+            repo_id = model_summary.get("modelName") or model_summary.get("Path")
+            if not repo_id: continue
+            
+            if "/" not in repo_id and "Path" in model_summary and "Name" in model_summary:
+                repo_id = f"{model_summary['Path']}/{model_summary['Name']}"
+
+            self.sync_repo(repo_id, **kwargs)
+            count += 1
+            if limit and count >= limit: break
+
+        self.processor.log("✨ Scrape complete.")

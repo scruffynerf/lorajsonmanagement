@@ -1,0 +1,5 @@
+requests>=2.25.0
+Pillow>=8.0.0
+huggingface_hub>=0.8.0
+blake3>=0.3.0
+modelscope>=1.0.0

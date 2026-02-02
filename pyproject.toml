@@ -1,0 +1,27 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "lorajsonmanagement"
+version = "0.1.0"
+description = "Modular tools for managing LoRA model metadata and files."
+readme = "README.md"
+requires-python = ">=3.8"
+license = {text = "MIT"}
+authors = [
+    {name = "Scruffynerf", email = "scruffynerf@example.com"}
+]
+dependencies = [
+    "requests",
+    "Pillow",
+    "huggingface_hub",
+    "blake3",
+    "modelscope",
+]
+
+[project.scripts]
+lora-mgmt = "lorajsonmanagement.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
