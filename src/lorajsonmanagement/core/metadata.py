@@ -8,6 +8,7 @@ Tested in: tests/test_api_and_db.py, tests/test_processing.py
 import os
 import json
 import re
+from pathlib import Path
 from datetime import datetime, timezone
 from typing import Optional, List, Tuple, Dict, Any
 from lorajsonmanagement.core.hashing import file_hashes, get_autov3_hash
