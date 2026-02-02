@@ -18,7 +18,7 @@ class ModelscopeAPI:
     
     DOMAINS = {
         "ai": "https://modelscope.ai",
-        "cn": "https://www.modelscope.cn"
+        "cn": "https://modelscope.cn"
     }
     
     API_LIMIT = 500
@@ -85,18 +85,18 @@ class ModelscopeAPI:
 
     def get_git_url(self, repo_id: str) -> str:
         """Get the Git clone URL for a repository."""
-        return f"https://www.modelscope.cn/{repo_id}.git"
+        return f"{self.base_url}/{repo_id}.git"
 
     def get_sha256_from_lfs_pointer(self, repo_id: str, filename: str) -> Tuple[Optional[str], Optional[int]]:
         """
         Download Git-LFS pointer from ModelScope and extract SHA256/size.
         """
         try:
-            url = f"https://www.modelscope.cn/api/v1/models/{repo_id}/repo/files?path={filename}"
+            url = f"{self.base_url}/api/v1/models/{repo_id}/repo/files?path={filename}"
             # This is a guestimating pattern based on common MaaS behaviors
             # Actually, ModelScope's get_model_details often includes these already.
             # But for raw access:
-            raw_url = f"https://www.modelscope.cn/{repo_id}/raw/master/{filename}"
+            raw_url = f"{self.base_url}/{repo_id}/raw/master/{filename}"
             self.check_rate_limit()
             response = requests.get(raw_url, timeout=10)
             response.raise_for_status()
@@ -174,7 +174,8 @@ def main():
         print(f"Successfully retrieved {len(results.get('data', {}).get('models', []))} models.")
     
     # Details example
-    details = api.get_model_details("cwyspee", "qwe_jjk")
+    # Example: api.get_model_details("damo", "cv_resnet50_face-detection_retinaface")
+    details = api.get_model_details("author", "model_name")
     if "error" not in details:
         print(f"Model ID: {details.get('Data', {}).get('Id')}")
 
