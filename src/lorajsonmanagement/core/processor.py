@@ -352,10 +352,19 @@ class ModelProcessor:
             if w not in tags:
                 tags.append(w)
 
-        # Extract cover image
+        # Extract cover image URL
         preview_url = None
-        versions = data.get("versions") or data.get("Versions", [])
+        # Try MuseInfo first (common for some LoRAs)
+        muse_info = data.get("MuseInfo", {})
+        versions = muse_info.get("versions", [])
+        
+        # Fallback to root versions
+        if not versions:
+            versions = data.get("versions") or data.get("Versions", [])
+
         if versions and isinstance(versions, list) and len(versions) > 0:
+            # Try to match the specific file to a version if possible, otherwise use first
+            # But here we just grab the first available cover image for now as general metadata
             cover_images = versions[0].get("coverImages") or versions[0].get("CoverImages", [])
             if cover_images and isinstance(cover_images, list) and len(cover_images) > 0:
                 preview_url = cover_images[0].get("url") or cover_images[0].get("Url")
@@ -393,6 +402,28 @@ class ModelProcessor:
                     meta["sha256"] = info.get("sha256")
                     break
             
+            # Download preview image if available
+            if preview_url:
+                try:
+                    # Determine extension (default to png if unknown)
+                    ext = ".png"
+                    if "." in preview_url.split("/")[-1]:
+                        poss_ext = "." + preview_url.split("/")[-1].split(".")[-1]
+                        if poss_ext.lower() in [".jpg", ".jpeg", ".png", ".webp"]:
+                            ext = poss_ext
+                    
+                    preview_path = st_file.with_suffix(ext)
+                    
+                    if not self.dry_run:
+                        self.log(f"🖼️ Downloading preview: {preview_url}")
+                        if download_image(preview_url, preview_path, verbose=self.verbose):
+                            meta["preview_url"] = str(preview_path.absolute())
+                    else:
+                        self.log(f"💡 [Dry-run] Would download preview to {preview_path}")
+                        meta["preview_url"] = str(preview_path.absolute())
+                except Exception as e:
+                    self.log(f"❌ Failed to download preview: {e}")
+
             # If no hash found in API, we'll hash it later in process_group_and_convert
             meta_path = st_file.with_suffix(".metadata.json")
             if not self.dry_run:
