@@ -156,14 +156,18 @@ class MSScraperManager:
             self.sync_repo(repo_id, base_models=None, force=force, **kwargs)
 
     def scrape_all(self, model_type: str = "LoRA", limit: Optional[int] = None, 
-                   base_models: Optional[List[str]] = None, force: bool = False, **kwargs):
+                   base_models: Optional[List[str]] = None, force: bool = False,
+                   base_model_no_ver: Optional[List[str]] = None,
+                   base_model_relation: Optional[str] = None, **kwargs):
         """
         Scrape Modelscope for all models of a type, syncing each.
         """
         self.processor.log(f"🕵️ Starting scrape for {model_type} models...")
         
         count = 0
-        for model_summary in self.api.iterate_models(model_type=model_type, limit=limit, base_models=base_models):
+        for model_summary in self.api.iterate_models(model_type=model_type, limit=limit, base_models=base_models,
+                                                   base_model_no_ver=base_model_no_ver,
+                                                   base_model_relation=base_model_relation):
             repo_id = model_summary.get("modelName") or model_summary.get("Path")
             if not repo_id: continue
             

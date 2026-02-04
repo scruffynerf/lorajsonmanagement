@@ -73,7 +73,14 @@ def handle_ms_search(args):
                 base_models.append(item.strip())
 
     api = ModelscopeAPI(domain=args.domain)
-    results = api.search_models(model_type=args.type, page=args.page, sort=args.sort, base_models=base_models)
+    results = api.search_models(
+        model_type=args.type, 
+        page=args.page, 
+        sort=args.sort, 
+        base_models=base_models,
+        base_model_no_ver=args.base_model_no_ver,
+        base_model_relation=args.base_model_relation
+    )
     
     if args.download:
         from lorajsonmanagement.core.scraper_ms import MSScraperManager
@@ -228,7 +235,9 @@ def handle_ms_scrape(args):
             skip_vae=args.novae,
             skip_text_encoder=args.notextencoder,
             base_models=base_models,
-            force=args.force
+            force=args.force,
+            base_model_no_ver=args.base_model_no_ver,
+            base_model_relation=args.base_model_relation
         )
 
 def handle_hf_scrape(args):
@@ -308,6 +317,8 @@ def main():
     parser_ms_scrape.add_argument("--notextencoder", action="store_true", help="Skip text_encoder files")
     parser_ms_scrape.add_argument("--limit", type=int, help="Max number of repos to check when scraping by type")
     parser_ms_scrape.add_argument("--base-model", nargs="+", help="Filter by base model tag or description")
+    parser_ms_scrape.add_argument("--base-model-no-ver", nargs="+", help="Filter by base_model_no_ver (Criterion, e.g. Tongyi-MAI/Z-Image)")
+    parser_ms_scrape.add_argument("--base-model-relation", help="Filter by base_model_relation (SingleCriterion, e.g. adapter)")
     parser_ms_scrape.add_argument("--force", action="store_true", help="Download even if exists in DB")
     parser_ms_scrape.add_argument("--dry-run", action="store_true", help="Don't download")
     parser_ms_scrape.add_argument("--quiet", action="store_true", help="Minimize output")
@@ -348,6 +359,8 @@ def main():
     parser_ms_search.add_argument("--novae", action="store_true", help="Skip VAE files")
     parser_ms_search.add_argument("--notextencoder", action="store_true", help="Skip text_encoder files")
     parser_ms_search.add_argument("--base-model", nargs="+", help="Filter by base model tag or description")
+    parser_ms_search.add_argument("--base-model-no-ver", nargs="+", help="Filter by base_model_no_ver (Criterion)")
+    parser_ms_search.add_argument("--base-model-relation", help="Filter by base_model_relation (SingleCriterion)")
     parser_ms_search.add_argument("--force", action="store_true", help="Download even if exists in DB")
     parser_ms_search.add_argument("--quiet", action="store_true", help="Minimize output")
     parser_ms_search.add_argument("--dry-run", action="store_true", help="Don't download")

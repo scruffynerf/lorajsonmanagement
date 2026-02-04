@@ -53,10 +53,16 @@ class ModelscopeAPI:
         self.api_requests.append(current_time)
 
     def search_models(self, model_type: str = "LoRA", page: int = 1, sort: str = "GmtModified", 
-                      base_models: Optional[List[str]] = None) -> Dict[str, Any]:
+                      base_models: Optional[List[str]] = None,
+                      base_model_no_ver: Optional[List[str]] = None,
+                      base_model_relation: Optional[str] = None) -> Dict[str, Any]:
         """Search for models on Modelscope using the dolphin endpoint with robust payload."""
         url = f"{self.base_url}/api/v1/dolphin/models"
         
+        # Map common sort keys to API valid values
+        if sort == "latest":
+            sort = "GmtModified"
+
         # Robust payload as discovered in telemetry/user-feedback
         payload = {
             "PageSize": 30,
@@ -88,6 +94,21 @@ class ModelscopeAPI:
                 "category": "sub_vision_foundation",
                 "predicate": "contains",
                 "values": base_models
+            })
+
+        if base_model_no_ver:
+            payload["Criterion"].append({
+                "category": "base_model_no_ver",
+                "predicate": "contains",
+                "values": base_model_no_ver
+            })
+
+        if base_model_relation:
+            payload["SingleCriterion"].append({
+                "category": "base_model_relation",
+                "DateType": "string",
+                "predicate": "equal",
+                "StringValue": base_model_relation
             })
             
         try:
@@ -166,7 +187,9 @@ class ModelscopeAPI:
         )
 
     def iterate_models(self, model_type: str = "LoRA", sort: str = "GmtModified", limit: Optional[int] = None,
-                       base_models: Optional[List[str]] = None):
+                       base_models: Optional[List[str]] = None,
+                       base_model_no_ver: Optional[List[str]] = None,
+                       base_model_relation: Optional[str] = None):
         """
         Generator that yields model summaries from search results, 
         handling pagination automatically.
@@ -174,7 +197,10 @@ class ModelscopeAPI:
         page = 1
         count = 0
         while True:
-            results = self.search_models(model_type=model_type, page=page, sort=sort, base_models=base_models)
+            results = self.search_models(model_type=model_type, page=page, sort=sort, 
+                                       base_models=base_models,
+                                       base_model_no_ver=base_model_no_ver,
+                                       base_model_relation=base_model_relation)
             
             if "error" in results:
                 break
