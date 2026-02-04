@@ -27,7 +27,8 @@ class HFScraperManager:
 
     def sync_repo(self, repo_id: str, repo_type: str = "model", extensions: Optional[List[str]] = None,
                   output_dir: Optional[str] = None, max_workers: int = 4, size_limit: Optional[int] = None,
-                  skip_vae: bool = False, skip_text_encoder: bool = False, base_model: Optional[str] = None):
+                  skip_vae: bool = False, skip_text_encoder: bool = False, base_model: Optional[str] = None, 
+                  force: bool = False):
         """
         Synchronize a repository, downloading only files not already in the DB.
         """
@@ -79,9 +80,12 @@ class HFScraperManager:
                 continue
 
             # 3. Check Deduplication
-            if sha and self.db.has_hash(sha):
-                self.processor.log(f"✅ Already in DB: {fname}")
-                continue
+            if sha:
+                if not force and self.db.has_hash(sha):
+                    self.processor.log(f"✅ Already in DB: {fname}")
+                    continue
+                elif force and self.db.has_hash(sha):
+                    self.processor.log(f"🔁 Forcing download for: {fname}")
                 
             if not sha:
                 self.processor.log(f"⚠️  No SHA256 for {fname}, will download if needed.")
@@ -117,7 +121,7 @@ class HFScraperManager:
                 except Exception as e:
                     self.processor.log(f"  ❌ Failed {item['filename']}: {e}")
 
-    def sync_batch(self, repo_list: List[str], **kwargs):
+    def sync_batch(self, repo_list: List[str], force: bool = False, **kwargs):
         """Sync a list of repositories."""
         for repo_id in repo_list:
-            self.sync_repo(repo_id, **kwargs)
+            self.sync_repo(repo_id, force=force, **kwargs)

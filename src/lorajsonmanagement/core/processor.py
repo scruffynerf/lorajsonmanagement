@@ -356,6 +356,7 @@ class ModelProcessor:
         # Extract cover image URL and build file mapping
         preview_url = None
         file_to_url_map = {}
+        file_to_version_map = {}
 
         # Try MuseInfo first (common for some LoRAs)
         muse_info = data.get("MuseInfo", {})
@@ -371,14 +372,15 @@ class ModelProcessor:
             if cover_images and isinstance(cover_images, list) and len(cover_images) > 0:
                 preview_url = cover_images[0].get("url") or cover_images[0].get("Url")
             
-            # 2. Build file->image map
+            # 2. Build file->image and file->version map
             for v in versions:
+                # Version Name Logic (showName)
+                v_name = v.get("modelVersion", {}).get("showName")
+                
                 v_images = v.get("coverImages") or v.get("CoverImages", [])
-                if not v_images or not isinstance(v_images, list):
-                    continue
-                v_url = v_images[0].get("url") or v_images[0].get("Url")
-                if not v_url:
-                    continue
+                v_url = None
+                if v_images and isinstance(v_images, list):
+                    v_url = v_images[0].get("url") or v_images[0].get("Url")
                 
                 # Extract file list from stats
                 stats = v.get("stats")
@@ -399,7 +401,10 @@ class ModelProcessor:
                 if isinstance(stats, dict):
                     file_list = stats.get("fileList", [])
                     for fname in file_list:
-                        file_to_url_map[fname] = v_url
+                        if v_url:
+                            file_to_url_map[fname] = v_url
+                        if v_name:
+                            file_to_version_map[fname] = v_name
 
         # Extract and normalize base model
         base_model_raw = data.get("SubVisionFoundation") or data.get("VisionFoundation") or data.get("BaseModel")
@@ -442,7 +447,8 @@ class ModelProcessor:
             return
 
         for st_file in st_files:
-            meta = base_meta_template.copy()
+            import copy
+            meta = copy.deepcopy(base_meta_template) # Use deepcopy to ensure civitai dict is unique
             meta["file_name"] = st_file.stem
             meta["file_path"] = str(st_file.absolute())
             
@@ -450,6 +456,11 @@ class ModelProcessor:
             file_specific_url = file_to_url_map.get(st_file.name)
             if file_specific_url:
                 meta["preview_url"] = file_specific_url
+            
+            # Resolve specific version name for this file
+            file_specific_version = file_to_version_map.get(st_file.name)
+            if file_specific_version:
+                meta["civitai"]["name"] = file_specific_version
             
             # Check if API specifically lists this file's hash
             file_infos = data.get("ModelInfos", {}).get("safetensor", {}).get("files", [])

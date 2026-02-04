@@ -26,7 +26,7 @@ class MSScraperManager:
     def sync_repo(self, repo_id: str, extensions: Optional[List[str]] = None,
                   output_dir: Optional[str] = None, size_limit: Optional[int] = None,
                   skip_vae: bool = False, skip_text_encoder: bool = False, 
-                  base_models: Optional[List[str]] = None):
+                  base_models: Optional[List[str]] = None, force: bool = False):
         """
         Synchronize a single Modelscope repository, downloading only files not already in the DB.
         """
@@ -106,15 +106,12 @@ class MSScraperManager:
                 continue
 
             if sha256:
-                if self.db.has_hash(sha256):
+                if not force and self.db.has_hash(sha256):
                     self.processor.log(f"✅ Already in DB: {fname}")
-                    # We don't download this file, but we should probably ignore it in snapshot_download too
-                    # However, modelscope's snapshot_download doesn't support ignoring specific files by ID easily
-                    # We'll use ignore_patterns for files we already have? 
-                    # No, let's just use snapshot_download's behavior and let it cache, 
-                    # but our logic detects if we need to call it at all.
                     continue
                 else:
+                    if force and self.db.has_hash(sha256):
+                         self.processor.log(f"🔁 Forcing download for: {fname}")
                     needs_download = True
             else:
                 # No hash in API, must download to find out
@@ -153,13 +150,13 @@ class MSScraperManager:
         else:
             self.processor.log(f"⏭️ Skipping {repo_id} - all files accounted for.")
 
-    def sync_batch(self, repo_list: List[str], base_models: Optional[List[str]] = None, **kwargs):
+    def sync_batch(self, repo_list: List[str], base_models: Optional[List[str]] = None, force: bool = False, **kwargs):
         """Sync a list of Modelscope repositories."""
         for repo_id in repo_list:
-            self.sync_repo(repo_id, base_models=None, **kwargs)
+            self.sync_repo(repo_id, base_models=None, force=force, **kwargs)
 
     def scrape_all(self, model_type: str = "LoRA", limit: Optional[int] = None, 
-                   base_models: Optional[List[str]] = None, **kwargs):
+                   base_models: Optional[List[str]] = None, force: bool = False, **kwargs):
         """
         Scrape Modelscope for all models of a type, syncing each.
         """
@@ -173,7 +170,7 @@ class MSScraperManager:
             if "/" not in repo_id and "Path" in model_summary and "Name" in model_summary:
                 repo_id = f"{model_summary['Path']}/{model_summary['Name']}"
 
-            self.sync_repo(repo_id, base_models=None, **kwargs)
+            self.sync_repo(repo_id, base_models=None, force=force, **kwargs)
             count += 1
             if limit and count >= limit: break
 
