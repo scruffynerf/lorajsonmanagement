@@ -369,6 +369,24 @@ class ModelProcessor:
             if cover_images and isinstance(cover_images, list) and len(cover_images) > 0:
                 preview_url = cover_images[0].get("url") or cover_images[0].get("Url")
 
+        # Extract and normalize base model
+        base_model_raw = data.get("SubVisionFoundation") or data.get("VisionFoundation") or data.get("BaseModel")
+        
+        # Use simple string extraction if it's a JSON string
+        if not base_model_raw:
+             # Try looking in AigcAttributes if it is a dictionary/json string
+             aigc_attrs = data.get("AigcAttributes")
+             if aigc_attrs:
+                 try:
+                     if isinstance(aigc_attrs, str):
+                         aigc_attrs = json.loads(aigc_attrs)
+                     if isinstance(aigc_attrs, dict):
+                         base_model_raw = aigc_attrs.get("SubVisionFoundation") or aigc_attrs.get("VisionFoundation")
+                 except Exception:
+                     pass
+
+        base_model = normalize_base_model(base_model_raw)
+
         # Map to internal metadata structure
         base_meta_template = {
             "model_name": model_name,
@@ -378,7 +396,8 @@ class ModelProcessor:
             "from_civitai": False,
             "source": "Modelscope",
             "civitai": {},
-            "preview_url": preview_url
+            "preview_url": preview_url,
+            "base_model": base_model
         }
         
         if trigger_words:
@@ -400,6 +419,7 @@ class ModelProcessor:
             for info in file_infos:
                 if info.get("name") == st_file.name:
                     meta["sha256"] = info.get("sha256")
+                    meta["size"] = info.get("size")
                     break
             
             # Download preview image if available
