@@ -17,7 +17,7 @@ from lorajsonmanagement.core.config import get_default_db_path, get_default_sign
 def handle_ms_download(args):
     """Handle repo download and metadata generation."""
     api = ModelscopeAPI(domain=args.domain)
-    processor = ModelProcessor(dry_run=args.dry_run, verbose=not args.quiet)
+    processor = ModelProcessor(dry_run=args.dry_run, verbose=not args.quiet, interactive=sys.stdin.isatty())
     
     processor.log(f"🚀 Downloading {args.repo_id} from Modelscope ({args.domain})...")
     
@@ -45,7 +45,7 @@ def handle_ms_download(args):
 
 def handle_process(args):
     """Handle metadata processing, renaming, and conversion."""
-    processor = ModelProcessor(dry_run=args.dry_run, verbose=not args.quiet)
+    processor = ModelProcessor(dry_run=args.dry_run, verbose=not args.quiet, interactive=sys.stdin.isatty())
     target = Path(args.target).expanduser().resolve()
     if target.is_file():
         processor.process_group_and_convert(

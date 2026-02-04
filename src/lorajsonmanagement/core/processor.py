@@ -39,9 +39,10 @@ class ModelProcessor:
     Orchestrates the renaming of model files and conversion of metadata formats.
     """
     
-    def __init__(self, dry_run: bool = False, verbose: bool = False, log_callback=print):
+    def __init__(self, dry_run: bool = False, verbose: bool = False, interactive: bool = True, log_callback=print):
         self.dry_run = dry_run
         self.verbose = verbose
+        self.interactive = interactive
         self.log_callback = log_callback
 
     def log(self, msg: str):
@@ -64,8 +65,8 @@ class ModelProcessor:
         replacements = {
             "{ModelName}": cleaned_name,
             "{Name}": cleaned_name,
-            "{BaseModel}": normalize_base_model(meta.get("base_model") or civitai.get("baseModel")),
-            "{Base}": normalize_base_model(meta.get("base_model") or civitai.get("baseModel")),
+            "{BaseModel}": normalize_base_model(meta.get("base_model") or civitai.get("baseModel"), interactive=self.interactive),
+            "{Base}": normalize_base_model(meta.get("base_model") or civitai.get("baseModel"), interactive=self.interactive),
             "{ModelType}": map_model_type(meta),
             "{Type}": map_model_type(meta),
             "{ModelVersion}": civitai.get("name") or "",
@@ -416,7 +417,7 @@ class ModelProcessor:
                  except Exception:
                      pass
 
-        base_model = normalize_base_model(base_model_raw)
+        base_model = normalize_base_model(base_model_raw, interactive=self.interactive)
 
         # Map to internal metadata structure
         base_meta_template = {

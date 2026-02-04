@@ -18,7 +18,9 @@ from lorajsonmanagement.core.config import (
     VALID_SOURCES,
     BASE_MODEL_MAPPINGS,
     CANONICAL_BASE_MODELS,
-    MODEL_TYPE_MAPPINGS
+    MODEL_TYPE_MAPPINGS,
+    load_custom_mappings,
+    save_custom_mapping
 )
 
 def sanitize_filename(name: str) -> str:
@@ -29,21 +31,48 @@ def sanitize_filename(name: str) -> str:
     return name.strip()
 
 
-def normalize_base_model(base_model: Optional[str]) -> str:
-    """Normalize base model name to match spec canonical names."""
+def normalize_base_model(base_model: Optional[str], interactive: bool = False) -> str:
+    """
+    Normalize base model name to match spec canonical names.
+    If interactive is True and model is unknown, prompt user for mapping.
+    """
     if not base_model:
         return "Other"
     
     lower = base_model.lower().strip()
     
+    # 1. Custom Mappings (User preferences)
+    custom_mappings = load_custom_mappings()
+    if lower in custom_mappings:
+        return custom_mappings[lower]
+
+    # 2. Built-in Mappings
     if lower in BASE_MODEL_MAPPINGS:
         return BASE_MODEL_MAPPINGS[lower]
     
+    # 3. Canonical check
     canonical_names = CANONICAL_BASE_MODELS
-    
     for canonical in canonical_names:
         if canonical.lower() == lower:
             return canonical
+            
+    # 4. Interactive Prompt
+    if interactive:
+        print(f"\n❓ Unknown base model found: '{base_model}'")
+        print("Please enter the canonical name for this model (e.g. 'SDXL 1.0', 'Flux.1 D').")
+        print("Press Enter to use 'Other'.")
+        choice = input(f"Canonical Name [{base_model} -> ?]: ").strip()
+        
+        if choice:
+            # Validate choice against canonical list if possible, or just accept it?
+            # Ideally we accept anything the user says, but maybe warn if not in CANONICAL_BASE_MODELS?
+            # For now, let's just trust the user and save it.
+            save_custom_mapping(base_model, choice)
+            return choice
+        else:
+            # User chose "Other" explicit or implicit
+            save_custom_mapping(base_model, "Other")
+            return "Other"
     
     return "Other"
 

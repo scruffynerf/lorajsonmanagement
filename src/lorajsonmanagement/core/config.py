@@ -204,3 +204,32 @@ MODEL_TYPE_MAPPINGS = {
     "dora": "DoRA",
     "textualinversion": "Embedding",
 }
+
+def get_custom_mapping_path() -> Path:
+    """Get path to custom base model mappings JSON."""
+    return get_config_dir() / "custom_base_models.json"
+
+def load_custom_mappings() -> dict:
+    """Load custom base model mappings from disk."""
+    path = get_custom_mapping_path()
+    if not path.exists():
+        return {}
+    try:
+        import json
+        with path.open("r", encoding="utf-8") as f:
+            return json.load(f)
+    except Exception:
+        return {}
+
+def save_custom_mapping(raw_name: str, canonical_name: str):
+    """Save a new custom mapping to disk."""
+    mappings = load_custom_mappings()
+    mappings[raw_name.lower().strip()] = canonical_name
+    
+    path = get_custom_mapping_path()
+    try:
+        import json
+        with path.open("w", encoding="utf-8") as f:
+            json.dump(mappings, f, indent=2)
+    except Exception as e:
+        print(f"⚠️ Failed to save custom mapping: {e}")
