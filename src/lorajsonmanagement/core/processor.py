@@ -352,8 +352,10 @@ class ModelProcessor:
             if w not in tags:
                 tags.append(w)
 
-        # Extract cover image URL
+        # Extract cover image URL and build file mapping
         preview_url = None
+        file_to_url_map = {}
+
         # Try MuseInfo first (common for some LoRAs)
         muse_info = data.get("MuseInfo", {})
         versions = muse_info.get("versions", [])
@@ -363,11 +365,40 @@ class ModelProcessor:
             versions = data.get("versions") or data.get("Versions", [])
 
         if versions and isinstance(versions, list) and len(versions) > 0:
-            # Try to match the specific file to a version if possible, otherwise use first
-            # But here we just grab the first available cover image for now as general metadata
+            # 1. Get global fallback (first available image)
             cover_images = versions[0].get("coverImages") or versions[0].get("CoverImages", [])
             if cover_images and isinstance(cover_images, list) and len(cover_images) > 0:
                 preview_url = cover_images[0].get("url") or cover_images[0].get("Url")
+            
+            # 2. Build file->image map
+            for v in versions:
+                v_images = v.get("coverImages") or v.get("CoverImages", [])
+                if not v_images or not isinstance(v_images, list):
+                    continue
+                v_url = v_images[0].get("url") or v_images[0].get("Url")
+                if not v_url:
+                    continue
+                
+                # Extract file list from stats
+                stats = v.get("stats")
+                # Fallback to modelVersion.stats if needed
+                if not stats:
+                    stats = v.get("modelVersion", {}).get("stats")
+                
+                if not stats: 
+                    continue
+                    
+                # Handle stringified JSON stats
+                if isinstance(stats, str):
+                    try:
+                        stats = json.loads(stats)
+                    except Exception:
+                        continue
+                
+                if isinstance(stats, dict):
+                    file_list = stats.get("fileList", [])
+                    for fname in file_list:
+                        file_to_url_map[fname] = v_url
 
         # Extract and normalize base model
         base_model_raw = data.get("SubVisionFoundation") or data.get("VisionFoundation") or data.get("BaseModel")
@@ -396,7 +427,7 @@ class ModelProcessor:
             "from_civitai": False,
             "source": "Modelscope",
             "civitai": {},
-            "preview_url": preview_url,
+            "preview_url": preview_url, # Default/Fallback
             "base_model": base_model
         }
         
@@ -414,6 +445,11 @@ class ModelProcessor:
             meta["file_name"] = st_file.stem
             meta["file_path"] = str(st_file.absolute())
             
+            # Resolve specific preview URL for this file
+            file_specific_url = file_to_url_map.get(st_file.name)
+            if file_specific_url:
+                meta["preview_url"] = file_specific_url
+            
             # Check if API specifically lists this file's hash
             file_infos = data.get("ModelInfos", {}).get("safetensor", {}).get("files", [])
             for info in file_infos:
@@ -423,20 +459,22 @@ class ModelProcessor:
                     break
             
             # Download preview image if available
-            if preview_url:
+            # Use the resolved URL from meta
+            target_preview_url = meta.get("preview_url")
+            if target_preview_url:
                 try:
                     # Determine extension (default to png if unknown)
                     ext = ".png"
-                    if "." in preview_url.split("/")[-1]:
-                        poss_ext = "." + preview_url.split("/")[-1].split(".")[-1]
+                    if "." in target_preview_url.split("/")[-1]:
+                        poss_ext = "." + target_preview_url.split("/")[-1].split(".")[-1]
                         if poss_ext.lower() in [".jpg", ".jpeg", ".png", ".webp"]:
                             ext = poss_ext
                     
                     preview_path = st_file.with_suffix(ext)
                     
                     if not self.dry_run:
-                        self.log(f"🖼️ Downloading preview: {preview_url}")
-                        if download_image(preview_url, preview_path, verbose=self.verbose):
+                        self.log(f"🖼️ Downloading preview: {target_preview_url}")
+                        if download_image(target_preview_url, preview_path, verbose=self.verbose):
                             meta["preview_url"] = str(preview_path.absolute())
                     else:
                         self.log(f"💡 [Dry-run] Would download preview to {preview_path}")
