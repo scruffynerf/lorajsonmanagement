@@ -22,7 +22,7 @@ def test_modelscope_search(mocker):
 def test_modelscope_iterate(mocker):
     mock_response = mocker.Mock()
     mock_response.status_code = 200
-    mock_response.json.return_value = {"Data": {"Models": [{"Name": "m1"}, {"Name": "m2"}]}}
+    mock_response.json.return_value = {"Data": {"Model": {"Models": [{"Name": "m1"}, {"Name": "m2"}]}}}
     mocker.patch("requests.put", return_value=mock_response)
     
     api = ModelscopeAPI()

@@ -16,7 +16,7 @@ from lorajsonmanagement.core.config import get_default_db_path, get_default_sign
 
 def handle_ms_download(args):
     """Handle repo download and metadata generation."""
-    api = ModelscopeAPI(domain=args.domain)
+    api = ModelscopeAPI(domain=args.domain, token=args.token)
     processor = ModelProcessor(dry_run=args.dry_run, verbose=not args.quiet, interactive=sys.stdin.isatty())
     
     processor.log(f"🚀 Downloading {args.repo_id} from Modelscope ({args.domain})...")
@@ -72,7 +72,7 @@ def handle_ms_search(args):
             else:
                 base_models.append(item.strip())
 
-    api = ModelscopeAPI(domain=args.domain)
+    api = ModelscopeAPI(domain=args.domain, token=args.token)
     results = api.search_models(
         model_type=args.type, 
         page=args.page, 
@@ -185,7 +185,8 @@ def handle_ms_scrape(args):
         secondary_db=args.secondary_db,
         domain=args.domain,
         dry_run=args.dry_run,
-        verbose=not args.quiet
+        verbose=not args.quiet,
+        token=args.token
     )
     
     # Robustly handle base-model argument (allow comma or space separation even if quoted)
@@ -319,6 +320,7 @@ def main():
     parser_ms_scrape.add_argument("--base-model", nargs="+", help="Filter by base model tag or description")
     parser_ms_scrape.add_argument("--base-model-no-ver", nargs="+", help="Filter by base_model_no_ver (Criterion, e.g. Tongyi-MAI/Z-Image)")
     parser_ms_scrape.add_argument("--base-model-relation", help="Filter by base_model_relation (SingleCriterion, e.g. adapter)")
+    parser_ms_scrape.add_argument("--token", help="ModelScope Access Token")
     parser_ms_scrape.add_argument("--force", action="store_true", help="Download even if exists in DB")
     parser_ms_scrape.add_argument("--dry-run", action="store_true", help="Don't download")
     parser_ms_scrape.add_argument("--quiet", action="store_true", help="Minimize output")
@@ -330,6 +332,7 @@ def main():
     parser_ms_download.add_argument("--domain", choices=["ai", "cn"], default="ai", help="Modelscope domain (default: ai)")
     parser_ms_download.add_argument("--output", help="Local directory to download into")
     parser_ms_download.add_argument("--force", action="store_true", help="Download even if exists in DB")
+    parser_ms_download.add_argument("--token", help="ModelScope Access Token")
     parser_ms_download.add_argument("--dry-run", action="store_true", help="Don't write metadata files")
     parser_ms_download.add_argument("--quiet", action="store_true", help="Minimize output")
     parser_ms_download.set_defaults(func=handle_ms_download)
@@ -361,6 +364,7 @@ def main():
     parser_ms_search.add_argument("--base-model", nargs="+", help="Filter by base model tag or description")
     parser_ms_search.add_argument("--base-model-no-ver", nargs="+", help="Filter by base_model_no_ver (Criterion)")
     parser_ms_search.add_argument("--base-model-relation", help="Filter by base_model_relation (SingleCriterion)")
+    parser_ms_search.add_argument("--token", help="ModelScope Access Token")
     parser_ms_search.add_argument("--force", action="store_true", help="Download even if exists in DB")
     parser_ms_search.add_argument("--quiet", action="store_true", help="Minimize output")
     parser_ms_search.add_argument("--dry-run", action="store_true", help="Don't download")

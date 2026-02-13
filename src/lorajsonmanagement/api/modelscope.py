@@ -25,7 +25,7 @@ class ModelscopeAPI:
     API_WINDOW = 60
     THROTTLE_THRESHOLD = 300
     
-    def __init__(self, domain: str = "ai", user_agent: Optional[str] = None):
+    def __init__(self, domain: str = "ai", user_agent: Optional[str] = None, token: Optional[str] = None):
         self.domain = domain
         self.base_url = self.DOMAINS.get(domain, self.DOMAINS["ai"])
         self.headers = {
@@ -34,7 +34,31 @@ class ModelscopeAPI:
             "Accept": "application/json",
             "Referer": f"{self.base_url}/models",
         }
+        self.token = token
+        if token:
+            self.login(token)
         self.api_requests = deque()
+
+    def login(self, token: str):
+        """Login to ModelScope using the provided token."""
+        try:
+            from modelscope.hub.api import HubApi
+            api = HubApi()
+            api.login(token)
+            # Standard HubApi login might set some global state or session.
+            # We also update headers for direct REST calls if needed.
+            self.headers["Authorization"] = f"Bearer {token}"
+            self.token = token
+        except ImportError:
+            # Fallback to general modelscope import if HubApi is nested differently
+            import modelscope
+            if hasattr(modelscope, 'HubApi'):
+                api = modelscope.HubApi()
+                api.login(token)
+                self.headers["Authorization"] = f"Bearer {token}"
+                self.token = token
+            else:
+                raise ImportError("Could not find HubApi in modelscope. Please ensure modelscope is installed.")
 
     def check_rate_limit(self):
         """Check and enforce proactive rate limiting for Modelscope."""
@@ -168,7 +192,8 @@ class ModelscopeAPI:
             return None, None
 
     def download_repo(self, repo_id: str, local_dir: Optional[str] = None, revision: str = "master",
-                      allow_patterns: Optional[List[str]] = None, ignore_patterns: Optional[List[str]] = None) -> str:
+                      allow_patterns: Optional[List[str]] = None, ignore_patterns: Optional[List[str]] = None,
+                      token: Optional[str] = None) -> str:
         """
         Download a model repository using the modelscope library.
         Returns the local directory path.
@@ -183,7 +208,8 @@ class ModelscopeAPI:
             local_dir=local_dir, 
             revision=revision,
             allow_patterns=allow_patterns,
-            ignore_patterns=ignore_patterns
+            ignore_patterns=ignore_patterns,
+            token=token or self.token
         )
 
     def iterate_models(self, model_type: str = "LoRA", sort: str = "GmtModified", limit: Optional[int] = None,

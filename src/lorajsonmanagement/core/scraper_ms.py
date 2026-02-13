@@ -17,8 +17,9 @@ class MSScraperManager:
     """
     
     def __init__(self, db_path: str = "downloaded_hashes.db", secondary_db: Optional[str] = None, 
-                 domain: str = "ai", dry_run: bool = False, verbose: bool = True):
-        self.api = ModelscopeAPI(domain=domain)
+                 domain: str = "ai", dry_run: bool = False, verbose: bool = True,
+                 token: Optional[str] = None):
+        self.api = ModelscopeAPI(domain=domain, token=token)
         self.processor = ModelProcessor(dry_run=dry_run, verbose=verbose)
         self.db = HashDatabase(db_path=db_path, secondary_db_path=secondary_db)
         self.dry_run = dry_run
